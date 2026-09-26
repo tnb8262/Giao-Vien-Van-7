@@ -1,0 +1,6 @@
+{
+  "name": "Trợ lý Ngữ văn 7 - Học tốt Ngữ văn Lớp 7",
+  "description": "Trợ lý học tập thông minh chuyên sâu môn Ngữ văn lớp 7, hướng dẫn tư duy viết văn, giải đáp tác phẩm, thực hành Tiếng Việt và rèn luyện kỹ năng tự học.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}
