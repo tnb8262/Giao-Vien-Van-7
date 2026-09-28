@@ -3,9 +3,8 @@ import dotenv from 'dotenv';
 import path from 'path';
 import { fileURLToPath } from 'url';
 import {
-  MODEL,
-  SYSTEM_INSTRUCTION,
-  getAI,
+  generate,
+  MAX_OUTPUT_TOKENS,
   formatChatContents,
   buildOutlinePrompt,
   buildReviewPrompt,
@@ -39,14 +38,7 @@ async function createServer() {
         return res.status(400).json({ error: 'Danh sách tin nhắn không hợp lệ' });
       }
 
-      const response = await getAI().models.generateContent({
-        model: MODEL,
-        contents: formatChatContents(messages),
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.6,
-        },
-      });
+      const response = await generate(formatChatContents(messages), MAX_OUTPUT_TOKENS.chat);
 
       const reply = (response.text || 'Mình chưa thể phản hồi lúc này. Bạn thử hỏi lại câu hỏi khác về môn Ngữ văn 7 nhé!').normalize('NFC');
       res.json({ reply });
@@ -66,14 +58,7 @@ async function createServer() {
         return res.status(400).json({ error: 'Vui lòng cung cấp đề bài hoặc chủ đề' });
       }
 
-      const response = await getAI().models.generateContent({
-        model: MODEL,
-        contents: buildOutlinePrompt(topic, genre, bookSeries),
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.7,
-        },
-      });
+      const response = await generate(buildOutlinePrompt(topic, genre, bookSeries), MAX_OUTPUT_TOKENS.outline);
 
       res.json({ outline: (response.text || '').normalize('NFC') });
     } catch (error: any) {
@@ -90,14 +75,7 @@ async function createServer() {
         return res.status(400).json({ error: 'Nội dung bài viết quá ngắn để nhận xét' });
       }
 
-      const response = await getAI().models.generateContent({
-        model: MODEL,
-        contents: buildReviewPrompt(essay, topic, genre),
-        config: {
-          systemInstruction: SYSTEM_INSTRUCTION,
-          temperature: 0.6,
-        },
-      });
+      const response = await generate(buildReviewPrompt(essay, topic, genre), MAX_OUTPUT_TOKENS.review);
 
       res.json({ review: (response.text || '').normalize('NFC') });
     } catch (error: any) {
