@@ -3,7 +3,21 @@ import { GoogleGenAI } from '@google/genai';
 // Nguồn dùng chung cho cả Vercel Functions (api/*.ts) và server.ts (AI Studio / local).
 // Sửa prompt, model hoặc cấu hình tại đây.
 
-export const MODEL = 'gemini-3.8-flash';
+// Model chính và model dự phòng
+export const PRIMARY_MODEL = 'gemini-3.5-flash';
+export const FALLBACK_MODEL = 'gemini-2.5-flash';
+
+export const TEMPERATURE = 0.7;
+
+// Giới hạn token đầu ra theo từng chức năng
+export const MAX_OUTPUT_TOKENS = {
+  chat: 1500,
+  outline: 3000,
+  review: 3000,
+} as const;
+
+// Thời gian chờ trước khi thử lại khi gặp lỗi 503
+const RETRY_DELAY_MS = 1500;
 
 export const SYSTEM_INSTRUCTION = `Bạn là trợ lý học tập thông minh dành riêng cho môn **Ngữ văn lớp 7** (theo Chương trình GDPT 2018 - bao gồm cả 3 bộ sách Kết nối tri thức với cuộc sống, Chân trời sáng tạo, Cánh diều).
 
@@ -40,6 +54,58 @@ export function getAI(): GoogleGenAI {
     });
   }
   return aiClient;
+}
+
+function getStatus(error: any): number | undefined {
+  const status = error?.status ?? error?.code ?? error?.error?.code;
+  return typeof status === 'number' ? status : undefined;
+}
+
+const sleep = (ms: number) => new Promise((resolve) => setTimeout(resolve, ms));
+
+async function callModel(model: string, contents: any, maxOutputTokens: number) {
+  return getAI().models.generateContent({
+    model,
+    contents,
+    config: {
+      systemInstruction: SYSTEM_INSTRUCTION,
+      temperature: TEMPERATURE,
+      maxOutputTokens,
+    },
+  });
+}
+
+/**
+ * Gọi Gemini theo thứ tự:
+ * 1. PRIMARY_MODEL
+ * 2. Nếu lỗi 503: chờ 1,5 giây, gọi lại PRIMARY_MODEL 1 lần
+ * 3. Nếu lần thử lại vẫn lỗi 503: chuyển sang FALLBACK_MODEL (1 lần)
+ * Các lỗi khác (429, 400, 500...) được ném ra ngay, không thử lại.
+ */
+export async function generate(contents: any, maxOutputTokens: number) {
+  try {
+    const response = await callModel(PRIMARY_MODEL, contents, maxOutputTokens);
+    console.log(`[Gemini] Trả lời bởi ${PRIMARY_MODEL}`);
+    return response;
+  } catch (error) {
+    if (getStatus(error) !== 503) throw error;
+    console.warn(`[Gemini] ${PRIMARY_MODEL} lỗi 503, thử lại sau ${RETRY_DELAY_MS}ms`);
+  }
+
+  await sleep(RETRY_DELAY_MS);
+
+  try {
+    const response = await callModel(PRIMARY_MODEL, contents, maxOutputTokens);
+    console.log(`[Gemini] Trả lời bởi ${PRIMARY_MODEL} (sau khi thử lại)`);
+    return response;
+  } catch (error) {
+    if (getStatus(error) !== 503) throw error;
+    console.warn(`[Gemini] ${PRIMARY_MODEL} vẫn lỗi 503, chuyển sang ${FALLBACK_MODEL}`);
+  }
+
+  const response = await callModel(FALLBACK_MODEL, contents, maxOutputTokens);
+  console.log(`[Gemini] Trả lời bởi ${FALLBACK_MODEL} (dự phòng)`);
+  return response;
 }
 
 export type ChatInput = { role: string; content: string };
