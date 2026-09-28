@@ -1,4 +1,8 @@
-import { MODEL, SYSTEM_INSTRUCTION, getAI, buildReviewPrompt } from './_lib/gemini.js';
+import {
+  generate,
+  MAX_OUTPUT_TOKENS,
+  buildReviewPrompt,
+} from './_lib/gemini.js';
 import { allowPostOnly, type ApiRequest, type ApiResponse } from './_lib/http.js';
 
 export default async function handler(req: ApiRequest, res: ApiResponse) {
@@ -9,14 +13,7 @@ export default async function handler(req: ApiRequest, res: ApiResponse) {
       return res.status(400).json({ error: 'Nội dung bài viết quá ngắn để nhận xét' });
     }
 
-    const response = await getAI().models.generateContent({
-      model: MODEL,
-      contents: buildReviewPrompt(essay, topic, genre),
-      config: {
-        systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.6,
-      },
-    });
+    const response = await generate(buildReviewPrompt(essay, topic, genre), MAX_OUTPUT_TOKENS.review);
 
     res.status(200).json({ review: (response.text || '').normalize('NFC') });
   } catch (error: any) {
